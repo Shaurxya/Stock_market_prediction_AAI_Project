@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Build
+frontend/dist/
+frontend/build/
+
+# Models (optional - uncomment if storing models via LFS or cloud)
+# models/saved_models/*.keras
+# models/saved_models/*.pkl
+# models/saved_models/*.h5
+
+# Plots (regenerated during training)
+models/plots/*.png
+
+# Dataset cache (auto-downloaded)
+datasets/*.csv
+
+# Logs
+*.log
+venv/
+backend/venv/
+frontend/node_modules/
