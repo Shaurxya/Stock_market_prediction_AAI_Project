@@ -8,7 +8,14 @@ All /api/* routes are handled by FastAPI.
 import os
 import sys
 
-# Add backend to path so imports work
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
+# Vercel runs from the project root. Add backend/ to sys.path
+# so that 'from app.main import app' resolves correctly.
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_backend_dir = os.path.join(_project_root, "backend")
 
-from app.main import app
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from app.main import app  # noqa: E402
