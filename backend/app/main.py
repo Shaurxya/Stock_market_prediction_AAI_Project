@@ -38,16 +38,19 @@ async def lifespan(app: FastAPI):
     logger.info("   💾 Model cache: INITIALIZED")
     logger.info("   🔧 Models will be trained on-demand per ticker")
 
-    # Pre-load any existing models from disk
-    from app.services.model_cache import model_cache, MODELS_DIR
-    if os.path.exists(MODELS_DIR):
-        import glob
-        existing = glob.glob(os.path.join(MODELS_DIR, "*_xgboost_model.pkl"))
-        if existing:
-            tickers = [os.path.basename(f).replace("_xgboost_model.pkl", "") for f in existing]
-            logger.info(f"   📂 Found {len(tickers)} pre-trained models: {tickers}")
-        else:
-            logger.info("   📂 No pre-trained models found. Will train dynamically.")
+    # Pre-load any existing models from disk (skip in serverless)
+    try:
+        from app.services.model_cache import model_cache, MODELS_DIR
+        if os.path.exists(MODELS_DIR):
+            import glob
+            existing = glob.glob(os.path.join(MODELS_DIR, "*_xgboost_model.pkl"))
+            if existing:
+                tickers = [os.path.basename(f).replace("_xgboost_model.pkl", "") for f in existing]
+                logger.info(f"   📂 Found {len(tickers)} pre-trained models: {tickers}")
+            else:
+                logger.info("   📂 No pre-trained models found. Will train dynamically.")
+    except Exception as e:
+        logger.info(f"   📂 Serverless mode — skipping disk cache: {e}")
 
     yield  # Application runs here
 
@@ -69,7 +72,10 @@ app = FastAPI(
 )
 
 # ─── CORS Configuration ──────────────────────────────────────────────
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,https://stock-market-prediction-aai-project.vercel.app"
+)
 origins = [origin.strip() for origin in cors_origins.split(",")]
 
 app.add_middleware(

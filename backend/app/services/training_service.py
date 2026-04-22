@@ -169,7 +169,14 @@ async def train_lstm_background(ticker: str, df: pd.DataFrame, scaler_params: di
     """
     Train LSTM model in background. Updates the cache when complete.
     FIX: Uses the SAME scaler_params as XGBoost for consistency.
+    Gracefully skips if TensorFlow is not available (serverless mode).
     """
+    try:
+        import tensorflow as tf  # noqa: F401
+    except ImportError:
+        logger.info(f"   ⚠️ [Background] TensorFlow not available — skipping LSTM for {ticker}")
+        return
+
     try:
         logger.info(f"   🔄 [Background] Starting LSTM training for {ticker}...")
 

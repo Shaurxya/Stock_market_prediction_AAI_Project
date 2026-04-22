@@ -26,8 +26,16 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 # ─── Configuration ───────────────────────────────────────────────────
-MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "saved_models")
-os.makedirs(MODELS_DIR, exist_ok=True)
+# In serverless (Vercel), the project filesystem is read-only.
+# Fall back to /tmp for model storage.
+_default_models_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "saved_models")
+try:
+    os.makedirs(_default_models_dir, exist_ok=True)
+    MODELS_DIR = _default_models_dir
+except OSError:
+    MODELS_DIR = os.path.join("/tmp", "models", "saved_models")
+    os.makedirs(MODELS_DIR, exist_ok=True)
+    logger.info(f"Using /tmp for model storage (serverless mode)")
 
 # Cache TTLs (seconds)
 MEMORY_TTL = 3600        # 1 hour for in-memory cache
@@ -239,29 +247,35 @@ class ModelCache:
     def save_to_disk(self, ticker: str, xgb_model: Any = None,
                      lstm_model: Any = None, scaler_params: dict = None,
                      metadata: dict = None):
-        """Persist model to disk (L2 cache)."""
+        """Persist model to disk (L2 cache). Gracefully handles read-only filesystems."""
         ticker = ticker.upper()
 
-        if xgb_model is not None:
-            path = os.path.join(MODELS_DIR, f"{ticker}_xgboost_model.pkl")
-            with open(path, "wb") as f:
-                pickle.dump(xgb_model, f)
-            logger.info(f"   💾 Saved XGBoost model to disk: {ticker}")
+        try:
+            if xgb_model is not None:
+                path = os.path.join(MODELS_DIR, f"{ticker}_xgboost_model.pkl")
+                with open(path, "wb") as f:
+                    pickle.dump(xgb_model, f)
+                logger.info(f"   💾 Saved XGBoost model to disk: {ticker}")
 
-        if lstm_model is not None:
-            path = os.path.join(MODELS_DIR, f"{ticker}_lstm_model.keras")
-            lstm_model.save(path)
-            logger.info(f"   💾 Saved LSTM model to disk: {ticker}")
+            if lstm_model is not None:
+                try:
+                    path = os.path.join(MODELS_DIR, f"{ticker}_lstm_model.keras")
+                    lstm_model.save(path)
+                    logger.info(f"   💾 Saved LSTM model to disk: {ticker}")
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Could not save LSTM to disk: {e}")
 
-        if scaler_params is not None:
-            path = os.path.join(MODELS_DIR, f"{ticker}_scaler_params.json")
-            with open(path, "w") as f:
-                json.dump(scaler_params, f, indent=2)
+            if scaler_params is not None:
+                path = os.path.join(MODELS_DIR, f"{ticker}_scaler_params.json")
+                with open(path, "w") as f:
+                    json.dump(scaler_params, f, indent=2)
 
-        if metadata is not None:
-            meta_path = os.path.join(MODELS_DIR, f"{ticker}_model_meta.json")
-            with open(meta_path, "w") as f:
-                json.dump(metadata, f, indent=2, default=str)
+            if metadata is not None:
+                meta_path = os.path.join(MODELS_DIR, f"{ticker}_model_meta.json")
+                with open(meta_path, "w") as f:
+                    json.dump(metadata, f, indent=2, default=str)
+        except OSError as e:
+            logger.warning(f"   ⚠️ Disk save failed (read-only filesystem?): {e}")
 
     def _load_metadata(self, ticker: str) -> Optional[dict]:
         meta_path = os.path.join(MODELS_DIR, f"{ticker}_model_meta.json")
@@ -294,6 +308,9 @@ class ModelCache:
         try:
             import tensorflow as tf
             return tf.keras.models.load_model(path)
+        except ImportError:
+            logger.info(f"   ⚠️ TensorFlow not available — skipping LSTM load for {ticker}")
+            return None
         except Exception as e:
             logger.warning(f"   ⚠️ Failed to load LSTM for {ticker}: {e}")
             return None

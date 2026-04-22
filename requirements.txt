@@ -1,0 +1,14 @@
+# Vercel Serverless Dependencies
+# ================================
+# Lightweight subset — no TensorFlow (exceeds 250MB limit)
+fastapi==0.104.1
+pydantic==2.5.2
+python-dotenv==1.0.0
+yfinance>=1.0.0
+pandas==2.1.4
+numpy==1.26.2
+scikit-learn==1.3.2
+xgboost==2.0.3
+requests==2.31.0
+python-multipart==0.0.6
+uvicorn==0.24.0
