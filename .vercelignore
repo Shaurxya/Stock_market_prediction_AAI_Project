@@ -1,0 +1,10 @@
+# Ignore backend and Python serverless functions on Vercel
+# (Backend is deployed on Render)
+api/
+backend/
+models/
+datasets/
+analytics/
+artifacts/
+requirements.txt
+.python-version
