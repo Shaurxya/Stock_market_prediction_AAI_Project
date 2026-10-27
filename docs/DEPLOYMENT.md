@@ -1,5 +1,17 @@
 # 🚢 Deployment Guide
 
+## Deploy this repository to Vercel as one project
+
+Use the **repository root** as Vercel's Root Directory and **Other** as the framework preset. The checked-in `vercel.json` builds the React frontend into `frontend/dist`, routes `/api/*` to the FastAPI application exported by `api/index.py`, serves static assets directly and falls back to `index.html` for React routes such as `/predict` and `/analytics`.
+
+Python is detected from the `.py` function automatically. Do not add `"runtime": "@vercel/python"` under `functions`: that property expects a versioned custom runtime and causes `invalid_function_runtime`. The root `.python-version` selects Python 3.12 for the serverless dependencies in the root `requirements.txt`; local ML and Spark environments still use the documented Python 3.11 setup. The Python function excludes local environments, Spark code, bulk datasets and frontend build files from its bundle.
+
+The Vercel dependency subset omits TensorFlow. XGBoost predictions are available; the full LSTM workflow runs in the local or separately hosted backend. Analytics requires a completed snapshot: the bulk local outputs are Git-ignored, so a Git-only deployment reports analytics as not ready until you provide those saved outputs to a separately hosted backend and set `VITE_API_URL` to its `/api` URL. The local Spark pipeline is not run during Vercel builds.
+
+The frontend-only instructions below apply when deliberately deploying the frontend and backend as separate services.
+
+References: [Python functions in `/api`](https://vercel.com/docs/functions/runtimes/python/api-directory), [function configuration](https://vercel.com/docs/project-configuration/vercel-json#functions), [Python version selection](https://vercel.com/docs/functions/runtimes/python/python-version).
+
 ## Architecture Overview
 
 ```
