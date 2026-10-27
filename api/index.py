@@ -22,15 +22,15 @@ for _p in [_backend_dir, _project_root]:
 
 # Import the FastAPI app
 try:
-    from app.main import app  # noqa: E402
+    from app.main import app as application  # noqa: E402
 except Exception as e:
     # If the main app fails to import, create a minimal fallback
     # so we can diagnose the issue from the browser
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
 
-    app = FastAPI(title="StockAI API (Fallback)")
-    app.add_middleware(
+    application = FastAPI(title="StockAI API (Fallback)")
+    application.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"],
@@ -39,11 +39,11 @@ except Exception as e:
 
     _import_error = str(e)
 
-    @app.get("/api/health")
+    @application.get("/api/health")
     async def health():
         return {"status": "fallback", "error": _import_error}
 
-    @app.get("/api/trending")
+    @application.get("/api/trending")
     async def trending():
         return {
             "error": _import_error,
@@ -57,8 +57,13 @@ except Exception as e:
             ],
         }
 
-    @app.get("/api/{path:path}")
+    @application.get("/api/{path:path}")
     async def catch_all(path: str):
         return {"error": _import_error, "path": path}
 
     logger.error(f"Failed to import main app: {e}")
+
+
+# Vercel statically detects module-level app exports; definitions inside
+# try/except alone are not discovered as Python serverless functions.
+app = application
