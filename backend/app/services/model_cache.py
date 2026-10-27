@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # ─── Configuration ───────────────────────────────────────────────────
 # In serverless (Vercel), the project filesystem is read-only.
 # Fall back to /tmp for model storage.
-_default_models_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "saved_models")
+_default_models_dir = os.getenv('MODEL_DIR') or os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "saved_models")
 try:
     os.makedirs(_default_models_dir, exist_ok=True)
     MODELS_DIR = _default_models_dir
@@ -227,7 +227,8 @@ class ModelCache:
         xgb_model = self._load_pickle(ticker, "xgboost")
 
         # Load LSTM (optional, non-blocking)
-        lstm_model = self._load_keras(ticker)
+        # A new XGBoost/scaler generation may still have an older Keras file on disk.
+        lstm_model = self._load_keras(ticker) if meta.get('lstm_ready', True) else None
 
         # Load scaler
         scaler = self._load_scaler(ticker)

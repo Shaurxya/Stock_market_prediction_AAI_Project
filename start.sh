@@ -1,80 +1,58 @@
 #!/bin/bash
-# ============================================================
-#  Stock Market Prediction System — Start Script
-#  Runs both backend (FastAPI) and frontend (Vite) together.
-#
-#  Usage:   ./start.sh
-#  Stop:    Ctrl+C (kills both servers)
-# ============================================================
-
-set -e
-
+# Run the existing app. Analytics batches are intentionally separate.
+set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BACKEND_DIR="$PROJECT_DIR/backend"
-FRONTEND_DIR="$PROJECT_DIR/frontend"
+BACKEND_PYTHON="$PROJECT_DIR/backend/venv/bin/python"
+BACKEND_PID=''
+FRONTEND_PID=''
 
-# Colors for pretty output
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+if [ ! -x "$BACKEND_PYTHON" ] || [ ! -d "$PROJECT_DIR/frontend/node_modules" ]; then
+    echo 'Dependencies are missing. Run make install first (Python 3.11 required).'
+    exit 1
+fi
+for port in 8000 5173; do
+    if lsof -iTCP:"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo "Port $port is already in use. Stop that server before starting this app."
+        exit 1
+    fi
+done
 
-echo ""
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}  📈 Stock Market Prediction System${NC}"
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
+cleanup() {
+    trap - EXIT INT TERM
+    [ -z "$BACKEND_PID" ] || kill "$BACKEND_PID" 2>/dev/null || true
+    [ -z "$FRONTEND_PID" ] || kill "$FRONTEND_PID" 2>/dev/null || true
+    wait 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-# ── Kill any existing process on port 8000 ───────────────────
-if lsof -ti:8000 > /dev/null 2>&1; then
-    echo -e "${YELLOW}⚠️  Port 8000 in use. Killing existing process...${NC}"
-    lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+cd "$PROJECT_DIR"
+"$BACKEND_PYTHON" -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 &
+BACKEND_PID=$!
+ready=0
+for attempt in {1..30}; do
+    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+        echo 'Backend failed to start. Check the error above.'
+        exit 1
+    fi
+    if curl --silent --fail http://127.0.0.1:8000/api/health >/dev/null; then
+        ready=1
+        break
+    fi
     sleep 1
+done
+if [ "$ready" -ne 1 ]; then
+    echo 'Backend did not become healthy within 30 seconds.'
+    exit 1
 fi
 
-# ── Trap Ctrl+C to kill both processes ───────────────────────
-cleanup() {
-    echo ""
-    echo -e "${YELLOW}🛑 Shutting down servers...${NC}"
-    kill $BACKEND_PID 2>/dev/null || true
-    kill $FRONTEND_PID 2>/dev/null || true
-    wait $BACKEND_PID 2>/dev/null
-    wait $FRONTEND_PID 2>/dev/null
-    echo -e "${GREEN}✅ All servers stopped.${NC}"
-    exit 0
-}
-trap cleanup SIGINT SIGTERM
-
-# ── Start Backend ────────────────────────────────────────────
-echo -e "${GREEN}🚀 Starting Backend (FastAPI on port 8000)...${NC}"
-(
-    cd "$BACKEND_DIR"
-    source venv/bin/activate
-    uvicorn app.main:app --reload --port 8000
-) &
-BACKEND_PID=$!
-
-# Give the backend a moment to start
-sleep 2
-
-# ── Start Frontend ───────────────────────────────────────────
-echo -e "${GREEN}🚀 Starting Frontend (Vite dev server)...${NC}"
-(
-    cd "$FRONTEND_DIR"
-    npm run dev
-) &
+(cd "$PROJECT_DIR/frontend" && exec npm run dev -- --host 127.0.0.1 --strictPort) &
 FRONTEND_PID=$!
-
-echo ""
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}  ✅ Both servers are running!${NC}"
-echo -e "${CYAN}  Backend  → http://localhost:8000${NC}"
-echo -e "${CYAN}  Frontend → http://localhost:5173${NC}"
-echo -e "${CYAN}  API Docs → http://localhost:8000/docs${NC}"
-echo -e "${YELLOW}  Press Ctrl+C to stop both servers${NC}"
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
-# Wait for both processes
-wait $BACKEND_PID $FRONTEND_PID
+echo 'StockAI: http://localhost:5173 · API docs: http://localhost:8000/docs'
+echo 'Market Analytics: http://localhost:5173/analytics · Ctrl+C stops both servers.'
+while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$FRONTEND_PID" 2>/dev/null; do
+    sleep 1
+done
+echo 'A server stopped; shutting down the other server.'
+exit 1

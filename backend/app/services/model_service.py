@@ -101,10 +101,12 @@ def _generate_30day_forecast(
     high_band = np.percentile(all_paths, 80, axis=0)
     low_band = np.percentile(all_paths, 20, axis=0)
 
-    today = datetime.now()
+    # Consecutive weekdays after the latest observed session (holiday calendar unverified).
+    observed = pd.to_datetime(featured_df['Date'].iloc[-1]) if 'Date' in featured_df else pd.Timestamp.now()
+    forecast_date = observed.to_pydatetime()
     forecast = []
     for d in range(num_days):
-        forecast_date = today + timedelta(days=d + 1)
+        forecast_date += timedelta(days=1)
         while forecast_date.weekday() >= 5:
             forecast_date += timedelta(days=1)
         forecast.append({
@@ -118,7 +120,7 @@ def _generate_30day_forecast(
     return forecast
 
 
-async def get_predictions(ticker: str, df: pd.DataFrame) -> dict:
+async def get_predictions(ticker: str, df: pd.DataFrame, force_retrain: bool = False) -> dict:
     """
     Generate predictions using dynamically trained models.
     
@@ -142,13 +144,15 @@ async def get_predictions(ticker: str, df: pd.DataFrame) -> dict:
 
     # ── Step 1: Get or train model dynamically ───────────────────
     try:
-        cache_entry = await get_or_train_model(ticker, df)
+        cache_entry = await get_or_train_model(ticker, df, force_retrain=force_retrain)
     except Exception as e:
         logger.error(f"   ❌ Dynamic training failed for {ticker}: {e}")
         cache_entry = None
 
     # ── Step 2: Engineer features ────────────────────────────────
     featured_df = engineer_features(df)
+    if featured_df.empty:
+        raise ValueError('No usable indicator rows. Try a longer historical period.')
     feature_cols = get_feature_columns()
     features = featured_df[feature_cols].values
 
@@ -241,10 +245,13 @@ async def get_predictions(ticker: str, df: pd.DataFrame) -> dict:
             "probability_up": round(heuristic_prob, 4),
             "probability_down": round(1 - heuristic_prob, 4),
         }
-        result["lstm"] = fallback
-        result["xgboost"] = fallback.copy()
         result["ensemble"] = fallback.copy()
         result["model_info"]["source"] = "heuristic_fallback"
+
+    result['model_info']['available_models'] = [name for name in ['xgboost', 'lstm'] if result[name]]
+    result['model_info']['lstm_status'] = ('ready' if result['lstm'] else
+        cache_entry.metadata.get('lstm_status', 'pending') if cache_entry else 'unavailable')
+    result['model_info']['forecast_method'] = 'Monte Carlo simulation; weekdays only, exchange holidays unverified'
 
     # ── Generate 30-Day Forecast ─────────────────────────────────
     ens = result.get("ensemble") or result.get("xgboost") or result.get("lstm")

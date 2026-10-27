@@ -88,6 +88,9 @@ export default function PredictionResults({ data }) {
 
     return (
         <div className="fade-in-up">
+            {data.model_info?.source === 'heuristic_fallback' && <p role="status" style={{ color: '#fbbf24', marginBottom: '1rem', fontSize: '.875rem' }}>Models are unavailable. This result uses a technical-indicator heuristic.</p>}
+            {['pending', 'scheduled', 'training'].includes(data.model_info?.lstm_status) && <p role="status" style={{ color: '#a5b4fc', marginBottom: '1rem', fontSize: '.875rem' }}>LSTM is training in the background. Run this prediction again shortly to include its result.</p>}
+            <p style={{ color: '#94a3b8', marginBottom: '1rem', fontSize: '.75rem' }}>The price path is a Monte Carlo simulation. Model probabilities are estimates, not a measure of guaranteed accuracy.</p>
             {/* Ensemble Result */}
             <div className="card" style={{ marginBottom: '1rem', padding: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>

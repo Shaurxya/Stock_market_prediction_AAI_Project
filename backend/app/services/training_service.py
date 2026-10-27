@@ -20,13 +20,12 @@ import sys
 import json
 import asyncio
 import logging
+import importlib.util
 import numpy as np
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Tuple, Any
 from sklearn.preprocessing import MinMaxScaler
-
-import xgboost as xgb
 
 from app.services.feature_service import engineer_features, get_feature_columns
 from app.services.model_cache import model_cache, ModelCacheEntry
@@ -47,8 +46,7 @@ XGBOOST_CONFIG = {
     "objective": "binary:logistic",
     "eval_metric": "logloss",
     "random_state": 42,
-    "use_label_encoder": False,
-    "n_jobs": -1,
+    "n_jobs": 2,
 }
 
 LSTM_CONFIG = {
@@ -63,6 +61,7 @@ LSTM_CONFIG = {
 TRAIN_SPLIT = 0.8
 MIN_ROWS_REQUIRED = 100
 TRAINING_TIMEOUT = 30  # seconds for XGBoost
+_lstm_semaphore = asyncio.Semaphore(1)
 
 
 def _prepare_sequences(data: np.ndarray, target: np.ndarray, lookback: int = 60):
@@ -73,10 +72,18 @@ def _prepare_sequences(data: np.ndarray, target: np.ndarray, lookback: int = 60)
     Uses features UP TO AND INCLUDING day i to predict day i → i+1.
     """
     X, y = [], []
-    for i in range(lookback - 1, len(data) - 1):
+    for i in range(lookback - 1, len(data)):
         X.append(data[i - lookback + 1: i + 1])
         y.append(target[i])
     return np.array(X), np.array(y)
+
+
+def _labeled_features(df):
+    """The final session has no observed next-day label and is inference-only."""
+    featured = engineer_features(df).copy()
+    next_close = featured['Close'].shift(-1)
+    featured['Target'] = (next_close > featured['Close']).astype(int)
+    return featured.loc[next_close.notna()].copy()
 
 
 # ─── XGBoost Training (Synchronous) ─────────────────────────────────
@@ -86,11 +93,12 @@ def train_xgboost_for_ticker(ticker: str, df: pd.DataFrame) -> Tuple[Any, dict, 
     Train XGBoost for a specific ticker.
     FIX: Scaler fit ONLY on training data.
     """
+    import xgboost as xgb
     logger.info(f"   🏋️ Training XGBoost for {ticker}...")
     start_time = datetime.now()
 
     # ── Feature engineering ──────────────────────────────────────
-    featured_df = engineer_features(df)
+    featured_df = _labeled_features(df)
     feature_cols = get_feature_columns()
 
     if len(featured_df) < MIN_ROWS_REQUIRED:
@@ -100,17 +108,14 @@ def train_xgboost_for_ticker(ticker: str, df: pd.DataFrame) -> Tuple[Any, dict, 
         )
 
     # ── Create target variable ───────────────────────────────────
-    featured_df = featured_df.copy()
-    featured_df["Target"] = (featured_df["Close"].shift(-1) > featured_df["Close"]).astype(int)
-    featured_df = featured_df.dropna()
-
     X = featured_df[feature_cols].values
     y = featured_df["Target"].values
 
     # ── FIX: Train/test split BEFORE scaling ─────────────────────
     split_idx = int(len(X) * TRAIN_SPLIT)
-    X_train_raw, X_test_raw = X[:split_idx], X[split_idx:]
-    y_train, y_test = y[:split_idx], y[split_idx:]
+    # Purge the boundary row: its label observes the first test session's close.
+    X_train_raw, X_test_raw = X[:split_idx - 1], X[split_idx:]
+    y_train, y_test = y[:split_idx - 1], y[split_idx:]
 
     # ── FIX: Scaler fit ONLY on training data ────────────────────
     scaler = MinMaxScaler(feature_range=(0, 1))
@@ -145,7 +150,9 @@ def train_xgboost_for_ticker(ticker: str, df: pd.DataFrame) -> Tuple[Any, dict, 
     metadata = {
         "ticker": ticker,
         "model_type": "XGBoost",
-        "version": 2,
+        "version": 3,
+        "lstm_ready": False,
+        "lstm_status": "pending",
         "accuracy": round(accuracy, 4),
         "f1_score": round(f1, 4),
         "train_samples": int(X_train_raw.shape[0]),
@@ -165,36 +172,55 @@ def train_xgboost_for_ticker(ticker: str, df: pd.DataFrame) -> Tuple[Any, dict, 
 
 # ─── LSTM Training (Background/Async) ───────────────────────────────
 
-async def train_lstm_background(ticker: str, df: pd.DataFrame, scaler_params: dict):
+async def train_lstm_background(ticker: str, df: pd.DataFrame, scaler_params: dict, expected_entry=None):
     """
     Train LSTM model in background. Updates the cache when complete.
     FIX: Uses the SAME scaler_params as XGBoost for consistency.
     Gracefully skips if TensorFlow is not available (serverless mode).
     """
-    try:
-        import tensorflow as tf  # noqa: F401
-    except ImportError:
+    entry = expected_entry or model_cache.get(ticker)
+    if entry is None or model_cache.get(ticker) is not entry:
+        return
+    if importlib.util.find_spec('tensorflow') is None:
         logger.info(f"   ⚠️ [Background] TensorFlow not available — skipping LSTM for {ticker}")
+        if entry:
+            entry.metadata['lstm_status'] = 'unavailable'
         return
 
     try:
         logger.info(f"   🔄 [Background] Starting LSTM training for {ticker}...")
 
+        if entry:
+            entry.metadata['lstm_status'] = 'training'
         loop = asyncio.get_event_loop()
-        lstm_model, lstm_meta = await loop.run_in_executor(
-            None, _train_lstm_sync, ticker, df, scaler_params
-        )
+        async with _lstm_semaphore:
+            if model_cache.get(ticker) is not entry:
+                return
+            lstm_model, lstm_meta = await loop.run_in_executor(
+                None, _train_lstm_sync, ticker, df, scaler_params
+            )
 
         if lstm_model is not None:
+            # Do not attach a model trained with an older scaler after a force retrain.
+            current = model_cache.get(ticker)
+            if current is None or current is not entry:
+                return
+            current.metadata['lstm_status'] = 'ready'
+            current.metadata['lstm_ready'] = True
+            current.metadata['lstm_accuracy'] = lstm_meta.get('accuracy')
             model_cache.update_lstm(ticker, lstm_model)
-            model_cache.save_to_disk(ticker, lstm_model=lstm_model)
+            model_cache.save_to_disk(ticker, lstm_model=lstm_model, metadata=current.metadata)
 
             logger.info(f"   ✅ [Background] LSTM training complete for {ticker} "
                         f"(accuracy={lstm_meta.get('accuracy', 'N/A')})")
         else:
+            if entry:
+                entry.metadata['lstm_status'] = 'insufficient_data'
             logger.warning(f"   ⚠️ [Background] LSTM training returned None for {ticker}")
 
     except Exception as e:
+        if model_cache.get(ticker) is entry and entry:
+            entry.metadata['lstm_status'] = 'failed'
         logger.error(f"   ❌ [Background] LSTM training failed for {ticker}: {e}")
 
 
@@ -217,21 +243,17 @@ def _train_lstm_sync(ticker: str, df: pd.DataFrame, scaler_params: dict) -> Tupl
     start_time = datetime.now()
 
     # Feature engineering
-    featured_df = engineer_features(df)
+    featured_df = _labeled_features(df)
     feature_cols = get_feature_columns()
-
-    featured_df = featured_df.copy()
-    featured_df["Target"] = (featured_df["Close"].shift(-1) > featured_df["Close"]).astype(int)
-    featured_df = featured_df.dropna()
 
     X = featured_df[feature_cols].values
     y = featured_df["Target"].values
 
     # ── FIX: Split BEFORE scaling ────────────────────────────────
     split_idx = int(len(X) * TRAIN_SPLIT)
-    X_train_raw = X[:split_idx]
+    X_train_raw = X[:split_idx - 1]
     X_test_raw = X[split_idx:]
-    y_train_all = y[:split_idx]
+    y_train_all = y[:split_idx - 1]
     y_test_all = y[split_idx:]
 
     # ── FIX: Recreate scaler from XGBoost's params (SAME scaler!) ─
@@ -253,7 +275,10 @@ def _train_lstm_sync(ticker: str, df: pd.DataFrame, scaler_params: dict) -> Tupl
     # ── FIX: Create sequences with corrected alignment ───────────
     lookback = LSTM_CONFIG["lookback"]
     X_train, y_train = _prepare_sequences(X_train_scaled, y_train_all, lookback)
-    X_test, y_test = _prepare_sequences(X_test_scaled, y_test_all, lookback)
+    # Test sequences include preceding historical context, never future observations.
+    X_test_context = scaler.transform(X[split_idx - lookback + 1:])
+    test_targets = y[split_idx - lookback + 1:]
+    X_test, y_test = _prepare_sequences(X_test_context, test_targets, lookback)
 
     if len(X_train) < 50:
         logger.warning(f"   ⚠️ Not enough sequences for LSTM: {len(X_train)}")
@@ -287,7 +312,7 @@ def _train_lstm_sync(ticker: str, df: pd.DataFrame, scaler_params: dict) -> Tupl
         Dense(1, activation="sigmoid"),
     ])
     model.compile(
-        optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=LSTM_CONFIG["learning_rate"]),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=LSTM_CONFIG["learning_rate"]),
         loss="binary_crossentropy",
         metrics=["accuracy"],
     )
@@ -311,7 +336,8 @@ def _train_lstm_sync(ticker: str, df: pd.DataFrame, scaler_params: dict) -> Tupl
 
     model.fit(
         X_train, y_train,
-        validation_data=(X_test, y_test),
+        validation_split=0.2,
+        shuffle=False,
         epochs=LSTM_CONFIG["epochs"],
         batch_size=LSTM_CONFIG["batch_size"],
         callbacks=callbacks,
@@ -350,7 +376,13 @@ def _train_lstm_sync(ticker: str, df: pd.DataFrame, scaler_params: dict) -> Tupl
 
 # ─── Orchestrator: Dynamic Training Pipeline ────────────────────────
 
-async def get_or_train_model(ticker: str, df: pd.DataFrame) -> ModelCacheEntry:
+def _schedule_lstm(ticker, df, entry):
+    if (entry is not None and not entry.has_lstm() and entry.scaler
+            and entry.metadata.get('lstm_status') in (None, 'pending')):
+        entry.metadata['lstm_status'] = 'scheduled'
+        asyncio.create_task(train_lstm_background(ticker, df, entry.scaler, entry))
+
+async def get_or_train_model(ticker: str, df: pd.DataFrame, force_retrain: bool = False) -> ModelCacheEntry:
     """
     Main orchestrator for the dynamic training pipeline.
 
@@ -366,8 +398,9 @@ async def get_or_train_model(ticker: str, df: pd.DataFrame) -> ModelCacheEntry:
     ticker = ticker.upper()
 
     # ── Step 1 & 2: Check caches ─────────────────────────────────
-    entry = model_cache.get_or_load_from_disk(ticker)
+    entry = None if force_retrain else model_cache.get_or_load_from_disk(ticker)
     if entry is not None and entry.has_xgboost():
+        _schedule_lstm(ticker, df, entry)
         logger.info(f"   ✅ Using cached model for {ticker}")
         return entry
 
@@ -376,8 +409,9 @@ async def get_or_train_model(ticker: str, df: pd.DataFrame) -> ModelCacheEntry:
 
     async with lock:
         # Double-check after acquiring lock
-        entry = model_cache.get(ticker)
+        entry = None if force_retrain else model_cache.get(ticker)
         if entry is not None and entry.has_xgboost():
+            _schedule_lstm(ticker, df, entry)
             logger.info(f"   ✅ Model appeared in cache while waiting")
             return entry
 
@@ -407,9 +441,7 @@ async def get_or_train_model(ticker: str, df: pd.DataFrame) -> ModelCacheEntry:
                 )
 
                 # ── Step 6: Background LSTM (with SAME scaler!) ──
-                asyncio.create_task(
-                    train_lstm_background(ticker, df, scaler_params)
-                )
+                _schedule_lstm(ticker, df, model_cache.get(ticker))
 
                 logger.info(f"   ✅ Dynamic training complete for {ticker}")
                 return model_cache.get(ticker)

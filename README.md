@@ -2,6 +2,10 @@
 
 A full-stack AI-powered stock market prediction system that predicts stock price trends (Up/Down) using **LSTM** and **XGBoost** models with time-series forecasting.
 
+Now also includes **local Apache Spark historical market analytics** at `/analytics`: resumable Yahoo/CSV ingestion, cleaned partitioned Parquet, quality reports, adjusted-return rankings, moving averages, volatility, volume anomalies and measured pandas/Spark comparisons. The analytics dashboard serves saved snapshots offline; existing predictions remain separate.
+
+**Run the completed app:** `npm start` (after `make install`). For analytics setup and the full reproducible demo, run `make analytics-install` then `make analytics-demo`. Use Python 3.11 and Java 21; macOS XGBoost also needs `brew install libomp`. See [the analytics guide](docs/BIG_DATA_ANALYTICS.md) and [recorded results](docs/BIG_DATA_RESULTS.json).
+
 ![Python](https://img.shields.io/badge/Python-3.9+-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green?logo=fastapi)
 ![React](https://img.shields.io/badge/React-18+-61DAFB?logo=react)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import SearchBar from '../components/SearchBar'
 import StockChart from '../components/StockChart'
@@ -18,6 +18,8 @@ export default function Predictions() {
     const [isLoading, setIsLoading] = useState(false)
     const [isChartLoading, setIsChartLoading] = useState(false)
     const [error, setError] = useState(null)
+    const searchRequest = useRef(0)
+    const chartRequest = useRef(0)
 
     useEffect(() => {
         async function loadTrending() {
@@ -44,6 +46,8 @@ export default function Predictions() {
     const handleSearch = useCallback(async (searchTicker, searchMarket = 'auto') => {
         const t = searchTicker.toUpperCase().trim()
         if (!t) return
+        const request = ++searchRequest.current
+        ++chartRequest.current
 
         setTicker(t)
         setMarket(searchMarket)
@@ -57,6 +61,7 @@ export default function Predictions() {
                 predictStock(t, '2y', searchMarket),
                 getStockHistory(t, chartPeriod, searchMarket),
             ])
+            if (request !== searchRequest.current) return
             setPredictionData(prediction)
             setChartData(history)
 
@@ -65,26 +70,28 @@ export default function Predictions() {
                 setTicker(prediction.ticker)
             }
         } catch (err) {
+            if (request !== searchRequest.current) return
             console.error('Prediction error:', err)
             const message = err.response?.data?.detail || err.message || 'Failed to fetch prediction'
             setError(message)
         } finally {
-            setIsLoading(false)
+            if (request === searchRequest.current) setIsLoading(false)
         }
     }, [chartPeriod])
 
     const handlePeriodChange = useCallback(async (period) => {
         if (!ticker) return
+        const request = ++chartRequest.current
         setChartPeriod(period)
         setIsChartLoading(true)
 
         try {
             const history = await getStockHistory(ticker, period, market)
-            setChartData(history)
+            if (request === chartRequest.current) setChartData(history)
         } catch (err) {
             console.error('Chart period change error:', err)
         } finally {
-            setIsChartLoading(false)
+            if (request === chartRequest.current) setIsChartLoading(false)
         }
     }, [ticker, market])
 

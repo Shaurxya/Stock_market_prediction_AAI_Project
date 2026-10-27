@@ -15,10 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
-from app.routes.predict import router as predict_router
-
 # Load environment variables
 load_dotenv()
+
+from app.routes.predict import router as predict_router
+from app.routes.analytics import router as analytics_router
 
 # ─── Logging Configuration ───────────────────────────────────────────
 logging.basicConfig(
@@ -88,6 +89,7 @@ app.add_middleware(
 
 # ─── Register Routes ─────────────────────────────────────────────────
 app.include_router(predict_router, prefix="/api", tags=["Predictions"])
+app.include_router(analytics_router, prefix="/api", tags=["Historical Analytics"])
 
 
 # ─── Root & Health Endpoints ─────────────────────────────────────────

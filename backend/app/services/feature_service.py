@@ -36,6 +36,8 @@ def compute_rsi(df: pd.DataFrame, column: str = "Close", period: int = 14) -> pd
 
     rs = avg_gain / avg_loss
     df[f"RSI_{period}"] = 100 - (100 / (1 + rs))
+    df.loc[(avg_loss == 0) & (avg_gain > 0), f'RSI_{period}'] = 100.0
+    df.loc[(avg_loss == 0) & (avg_gain == 0), f'RSI_{period}'] = 50.0
     return df
 
 

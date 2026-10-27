@@ -4,7 +4,9 @@
   "scripts": {
     "start": "bash ./start.sh",
     "dev": "bash ./start.sh",
-    "install:all": "cd frontend && npm install && cd ../backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "install:all": "make install",
+    "check": "make check",
+    "analytics:demo": "make analytics-demo",
     "clean": "rm -rf frontend/node_modules backend/venv"
   }
 }

@@ -160,7 +160,7 @@ def _fetch_with_retries(
             print(f"   📥 Attempt {attempt}/{MAX_RETRIES} — {ticker} (period={period})...")
             stock = yf.Ticker(ticker)
 
-            df = stock.history(period=period)
+            df = stock.history(period=period, auto_adjust=True)
 
             # ── Defensive Check 1: Empty DataFrame ───────────────
             if df is None or df.empty:
@@ -187,9 +187,8 @@ def _fetch_with_retries(
             if len(df) < initial_len:
                 print(f"   🧹 Cleaned {initial_len - len(df)} NaN rows ({len(df)} remaining)")
 
-            # ── Defensive Check 5: Minimum data threshold ────────
-            if len(df) < 50:
-                print(f"   ⚠️ Only {len(df)} rows for {ticker}. Minimum 50 needed.")
+            # History charts also support 1mo; prediction enforces its own minimum.
+            if df.empty:
                 return None, None
 
             # ── Get stock info (non-critical) ────────────────────

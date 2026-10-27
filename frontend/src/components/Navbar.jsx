@@ -9,6 +9,7 @@ export default function Navbar() {
     const navLinks = [
         { to: '/', label: 'Home', icon: Home },
         { to: '/predict', label: 'Predictions', icon: BarChart3 },
+        { to: '/analytics', label: 'Market Analytics', icon: TrendingUp },
         { to: '/about', label: 'About', icon: Info },
     ]
 

@@ -33,3 +33,17 @@ export async function healthCheck() {
 }
 
 export default api
+
+// Saved historical analytics. Pin follow-up requests to the overview's completed run.
+export async function getAnalyticsOverview(signal) {
+  return (await api.get('/analytics/overview', { signal })).data
+}
+export async function getAnalyticsRankings(params, signal) {
+  return (await api.get('/analytics/rankings', { params, signal })).data
+}
+export async function getAnalyticsStock(ticker, params, signal) {
+  return (await api.get(`/analytics/stock/${encodeURIComponent(ticker)}`, { params, signal })).data
+}
+export async function getAnalyticsBenchmarks(run, signal) {
+  return (await api.get('/analytics/benchmarks', { params: { run }, signal })).data
+}

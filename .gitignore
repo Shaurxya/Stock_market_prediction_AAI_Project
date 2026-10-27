@@ -37,3 +37,13 @@ datasets/*.csv
 venv/
 backend/venv/
 frontend/node_modules/
+.venv/
+datasets/market/
+artifacts/analytics/
+artifacts/prediction-check/
+models/saved_models/*_xgboost_model.pkl
+models/saved_models/*_lstm_model.keras
+models/saved_models/*_lstm_model.h5
+spark-warehouse/
+artifacts/spark-*/
+.cache/

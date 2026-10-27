@@ -1,0 +1,302 @@
+{
+  "recorded_at": "2026-10-27T06:05:17.770169+00:00",
+  "run_id": "20261027T060436-babb351e",
+  "dataset": {
+    "records": 246993,
+    "stocks_count": 99,
+    "date_range": {
+      "start": "2016-10-27",
+      "end": "2026-10-26"
+    },
+    "quality": {
+      "input_rows": 256993,
+      "accepted_rows": 246993,
+      "duplicate_rows": 10000,
+      "rejected_rows": 0,
+      "rejection_reasons": {},
+      "missing_adjusted_close": 0,
+      "zero_volume": 0,
+      "observed_session_gaps": 0,
+      "long_calendar_gaps": 0,
+      "calendar_method": "Observed exchange-session union; gaps over 7 calendar days also suppressed. Official holiday calendar not verified."
+    },
+    "execution": {
+      "engine": "Apache Spark",
+      "mode": "local[2]",
+      "spark_version": "4.0.1",
+      "shuffle_partitions": 4,
+      "runtime_seconds": 40.804
+    }
+  },
+  "acquisition": {
+    "configured": 100,
+    "success": 97,
+    "partial": 2,
+    "failed": 1,
+    "failed_tickers": [
+      "MMC"
+    ],
+    "partial_tickers": [
+      "ABNB",
+      "CRWD"
+    ]
+  },
+  "benchmarks": [
+    {
+      "status": "ready",
+      "run_id": "20261027T060436-babb351e",
+      "generated_at": "2026-10-27T06:55:57.336376+00:00",
+      "dataset_rows": 100000,
+      "source_dataset_rows": 246993,
+      "input_bytes": 3398837,
+      "synthetic": false,
+      "summaries": [
+        {
+          "engine": "pandas",
+          "completed_runs": 3,
+          "requested_runs": 3,
+          "median_seconds": 0.4074093749986787,
+          "min_seconds": 0.39926849999937986,
+          "max_seconds": 0.5047840000006545,
+          "stdev_seconds": 0.058710606907310774,
+          "median_startup_seconds": 0.33814445800089743,
+          "peak_process_tree_rss_bytes": 352894976
+        },
+        {
+          "engine": "spark",
+          "completed_runs": 3,
+          "requested_runs": 3,
+          "median_seconds": 5.97153116699883,
+          "min_seconds": 5.891859374998603,
+          "max_seconds": 6.747511874998963,
+          "stdev_seconds": 0.47269349730838317,
+          "median_startup_seconds": 3.007353625000178,
+          "peak_process_tree_rss_bytes": 706674688
+        }
+      ],
+      "measurements": [
+        {
+          "engine": "pandas",
+          "status": "success",
+          "rows": 100000,
+          "startup_seconds": 0.42517187500016007,
+          "processing_seconds": 0.5047840000006545,
+          "rows_per_second": 198104.53580119484,
+          "output_bytes": 10800894,
+          "repeat": 1,
+          "peak_process_tree_rss_bytes": 326713344,
+          "wall_seconds": 1.077671040999121
+        },
+        {
+          "engine": "spark",
+          "status": "success",
+          "rows": 100000,
+          "startup_seconds": 3.007353625000178,
+          "processing_seconds": 5.97153116699883,
+          "rows_per_second": 16746.123766822435,
+          "output_bytes": 9171573,
+          "repeat": 1,
+          "peak_process_tree_rss_bytes": 706674688,
+          "wall_seconds": 9.12056095799926
+        },
+        {
+          "engine": "pandas",
+          "status": "success",
+          "rows": 100000,
+          "startup_seconds": 0.33814445800089743,
+          "processing_seconds": 0.4074093749986787,
+          "rows_per_second": 245453.3600271823,
+          "output_bytes": 10800894,
+          "repeat": 2,
+          "peak_process_tree_rss_bytes": 352894976,
+          "wall_seconds": 0.871250374999363
+        },
+        {
+          "engine": "spark",
+          "status": "success",
+          "rows": 100000,
+          "startup_seconds": 2.7268949169992993,
+          "processing_seconds": 5.891859374998603,
+          "rows_per_second": 16972.570734518544,
+          "output_bytes": 9171573,
+          "repeat": 2,
+          "peak_process_tree_rss_bytes": 665157632,
+          "wall_seconds": 8.925016083001537
+        },
+        {
+          "engine": "pandas",
+          "status": "success",
+          "rows": 100000,
+          "startup_seconds": 0.30351416699886613,
+          "processing_seconds": 0.39926849999937986,
+          "rows_per_second": 250458.02511381518,
+          "output_bytes": 10800894,
+          "repeat": 3,
+          "peak_process_tree_rss_bytes": 343474176,
+          "wall_seconds": 0.86699920799947
+        },
+        {
+          "engine": "spark",
+          "status": "success",
+          "rows": 100000,
+          "startup_seconds": 3.1121884170006524,
+          "processing_seconds": 6.747511874998963,
+          "rows_per_second": 14820.277733859544,
+          "output_bytes": 9171573,
+          "repeat": 3,
+          "peak_process_tree_rss_bytes": 615710720,
+          "wall_seconds": 10.272569082999325
+        }
+      ],
+      "environment": {
+        "platform": "macOS-15.8.1-arm64-arm-64bit",
+        "architecture": "arm64",
+        "logical_cpus": 8,
+        "ram_bytes": 8589934592,
+        "python": "3.11.17",
+        "versions": {
+          "pandas": "2.2.3",
+          "numpy": "1.26.4",
+          "pyarrow": "19.0.1",
+          "pyspark": "4.0.1"
+        },
+        "spark_master": "local[2]",
+        "shuffle_partitions": 4
+      },
+      "methodology": "Each repeat in a fresh process. Engine import/startup reported separately. Processing includes Parquet read, identical features, date breadth/top-10 rankings, and output writes. Spark caches features only within that measured run. OS file cache is not cleared. An optional row-limited subset is ordered by stock/date and materialized once before measurements.",
+      "memory_method": "Sum of worker and recursive child RSS sampled every 100 ms, including the JVM. Shared pages may be counted twice; short peaks may be missed.",
+      "limitations": [
+        "Measured only on the genuine dataset available; no replicated or synthetic market coverage.",
+        "Local Spark can be slower on small datasets. Separate runs share OS file caches."
+      ]
+    },
+    {
+      "status": "ready",
+      "run_id": "20261027T060436-babb351e",
+      "generated_at": "2026-10-27T06:58:05.035894+00:00",
+      "dataset_rows": 246993,
+      "source_dataset_rows": 246993,
+      "input_bytes": 8938084,
+      "synthetic": false,
+      "summaries": [
+        {
+          "engine": "pandas",
+          "completed_runs": 3,
+          "requested_runs": 3,
+          "median_seconds": 0.9818168750007317,
+          "min_seconds": 0.8847499589992367,
+          "max_seconds": 1.0327937500005646,
+          "stdev_seconds": 0.07520814674492245,
+          "median_startup_seconds": 0.49738512499970966,
+          "peak_process_tree_rss_bytes": 623558656
+        },
+        {
+          "engine": "spark",
+          "completed_runs": 3,
+          "requested_runs": 3,
+          "median_seconds": 7.726083249999647,
+          "min_seconds": 7.498952375000954,
+          "max_seconds": 8.138017749999563,
+          "stdev_seconds": 0.3239555062530359,
+          "median_startup_seconds": 3.1859787089997553,
+          "peak_process_tree_rss_bytes": 741179392
+        }
+      ],
+      "measurements": [
+        {
+          "engine": "pandas",
+          "status": "success",
+          "rows": 246993,
+          "startup_seconds": 0.49738512499970966,
+          "processing_seconds": 0.9818168750007317,
+          "rows_per_second": 251567.27928496434,
+          "output_bytes": 20256247,
+          "repeat": 1,
+          "peak_process_tree_rss_bytes": 501530624,
+          "wall_seconds": 1.62117866600056
+        },
+        {
+          "engine": "spark",
+          "status": "success",
+          "rows": 246993,
+          "startup_seconds": 3.4547919160013407,
+          "processing_seconds": 8.138017749999563,
+          "rows_per_second": 30350.511339203367,
+          "output_bytes": 19471560,
+          "repeat": 1,
+          "peak_process_tree_rss_bytes": 741179392,
+          "wall_seconds": 11.964842749999661
+        },
+        {
+          "engine": "pandas",
+          "status": "success",
+          "rows": 246993,
+          "startup_seconds": 0.6095897079994756,
+          "processing_seconds": 1.0327937500005646,
+          "rows_per_second": 239150.36279011657,
+          "output_bytes": 20256247,
+          "repeat": 2,
+          "peak_process_tree_rss_bytes": 463732736,
+          "wall_seconds": 1.8367195840000932
+        },
+        {
+          "engine": "spark",
+          "status": "success",
+          "rows": 246993,
+          "startup_seconds": 3.1859787089997553,
+          "processing_seconds": 7.726083249999647,
+          "rows_per_second": 31968.72102044866,
+          "output_bytes": 19471560,
+          "repeat": 2,
+          "peak_process_tree_rss_bytes": 711704576,
+          "wall_seconds": 11.348221082998862
+        },
+        {
+          "engine": "pandas",
+          "status": "success",
+          "rows": 246993,
+          "startup_seconds": 0.38514229099928343,
+          "processing_seconds": 0.8847499589992367,
+          "rows_per_second": 279167.00926370214,
+          "output_bytes": 20256247,
+          "repeat": 3,
+          "peak_process_tree_rss_bytes": 623558656,
+          "wall_seconds": 1.4105021670002316
+        },
+        {
+          "engine": "spark",
+          "status": "success",
+          "rows": 246993,
+          "startup_seconds": 2.7586732920008217,
+          "processing_seconds": 7.498952375000954,
+          "rows_per_second": 32937.00075005058,
+          "output_bytes": 19471560,
+          "repeat": 3,
+          "peak_process_tree_rss_bytes": 691109888,
+          "wall_seconds": 10.563725042000442
+        }
+      ],
+      "environment": {
+        "platform": "macOS-15.8.1-arm64-arm-64bit",
+        "architecture": "arm64",
+        "logical_cpus": 8,
+        "ram_bytes": 8589934592,
+        "python": "3.11.17",
+        "versions": {
+          "pandas": "2.2.3",
+          "numpy": "1.26.4",
+          "pyarrow": "19.0.1",
+          "pyspark": "4.0.1"
+        },
+        "spark_master": "local[2]",
+        "shuffle_partitions": 4
+      },
+      "methodology": "Each repeat in a fresh process. Engine import/startup reported separately. Processing includes Parquet read, identical features, date breadth/top-10 rankings, and output writes. Spark caches features only within that measured run. OS file cache is not cleared. An optional row-limited subset is ordered by stock/date and materialized once before measurements.",
+      "memory_method": "Sum of worker and recursive child RSS sampled every 100 ms, including the JVM. Shared pages may be counted twice; short peaks may be missed.",
+      "limitations": [
+        "Measured only on the genuine dataset available; no replicated or synthetic market coverage.",
+        "Local Spark can be slower on small datasets. Separate runs share OS file caches."
+      ]
+    }
+  ]
+}

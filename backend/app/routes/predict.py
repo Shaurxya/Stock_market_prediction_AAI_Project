@@ -14,6 +14,7 @@ Changes from v1:
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 from typing import Optional, List
 import traceback
 import logging
@@ -131,21 +132,17 @@ async def predict_stock(request: PredictRequest):
         # ── Force retrain: clear cache if requested ──────────────
         if request.force_retrain:
             logger.info(f"   🔄 Force retrain requested for {resolved}")
-            # This will cause a cache miss and trigger retraining
-            cache = model_cache.get(resolved)
-            if cache:
-                model_cache._cache.pop(resolved.upper(), None)
 
         # ── Fetch live stock data ────────────────────────────────
         logger.info(f"📥 Prediction request: {ticker} → {resolved} "
                      f"(market={market}, period={period})")
 
-        df, stock_info = fetch_live_stock_data(ticker, period, market)
+        df, stock_info = await run_in_threadpool(fetch_live_stock_data, ticker, period, market)
 
         # ── Defensive: No data → try extended period ─────────────
         if df is None or df.empty:
             logger.info(f"   🔄 Retrying {ticker} with extended period '5y'...")
-            df, stock_info = fetch_live_stock_data(ticker, "5y", market)
+            df, stock_info = await run_in_threadpool(fetch_live_stock_data, ticker, "5y", market)
 
             if df is None or df.empty:
                 raise HTTPException(
@@ -168,7 +165,8 @@ async def predict_stock(request: PredictRequest):
 
         # ── Get predictions (now async — may trigger training) ───
         logger.info(f"   🔮 Generating predictions for {resolved}...")
-        prediction_data = await get_predictions(resolved, df)
+        resolved = stock_info.get('_resolved_ticker', resolved) if stock_info else resolved
+        prediction_data = await get_predictions(resolved, df, force_retrain=request.force_retrain)
 
         if prediction_data is None:
             raise HTTPException(
@@ -211,7 +209,7 @@ async def get_history(ticker: str, period: str = "1y", market: str = "auto"):
     ticker = ticker.upper().strip()
 
     try:
-        df, stock_info = fetch_live_stock_data(ticker, period, market)
+        df, stock_info = await run_in_threadpool(fetch_live_stock_data, ticker, period, market)
 
         if df is None or df.empty:
             raise HTTPException(
