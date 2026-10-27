@@ -1,17 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm ci && npm run build",
+  "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "framework": null,
-  "functions": {
-    "api/*.py": {
-      "maxDuration": 60,
-      "excludeFiles": "{analytics/**,datasets/**,artifacts/**,backend/venv/**,backend/tests/**,frontend/**,**/__pycache__/**,models/plots/**}"
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://stock-market-prediction-aai-project.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
-  },
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/index.py" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
